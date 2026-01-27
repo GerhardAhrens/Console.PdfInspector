@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <Folder Include="Core\" />
+    <Folder Include="DemoDatei\" />
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">

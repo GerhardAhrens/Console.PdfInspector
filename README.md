@@ -11,7 +11,7 @@ Je nachdem wie das PDF erzeug wurde, können mehr oder weniger Meta-Informationen
 
 # Beispielsource
 ```csharp
-var info = PdfInspector.Analyze(@"C:\_Downloads\example_065_PDF-A.pdf");
+PdfInfo info = PdfInspector.Analyze(@"C:\_Downloads\example_065_PDF-A.pdf");
 ```
 
 Kernstrück ist die Methode `ReadXmpValue`, die sowohl XML-Elemente als auch Attribute aus dem XMP-Metadatenblock eines PDF-Dokuments ausliest:
@@ -36,3 +36,11 @@ private static string ReadXmpValue(string text, string tagName)
     return attributeMatch.Success ? attributeMatch.Groups[1].Value : null;
 }
 ```
+
+Mit der Methode *ExtractXmp* können die **XMP** Metadaten aus dem PDF-Dokument extrahiert werden:
+
+```csharp
+string xmp = PdfInspector.ExtractXmp(@"C:\_Downloads\example_065_PDF-A.pdf");
+```
+
+PDF haben mittlerweile auch ein gewisses Risiko, da diese auch ausführbaren Code oder auch Attachments enthalten können. Daher ist es wichtig, PDF-Dokumente sorgfältig zu analysieren, bevor damit weiter gearbeitet wird.

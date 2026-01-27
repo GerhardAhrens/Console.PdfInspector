@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/_Doc/">
+    <File Path="LICENSE.txt" />
+    <File Path="README.md" />
+  </Folder>
+  <Project Path="Console.PdfInspector/Console.PdfInspector.csproj" />
+</Solution>

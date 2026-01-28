@@ -74,6 +74,18 @@ namespace Console.PdfInspector
             Console.CursorVisible = true;
         }
 
+        public static void PrintLine(char line = '-', ConsoleColor setColor = ConsoleColor.Yellow)
+        {
+            ConsoleColor defaultColor = Console.ForegroundColor;
+            Console.ForegroundColor = setColor;
+            Console.CursorVisible = false;
+
+            Console.WriteLine(new string(line,80));
+
+            Console.ForegroundColor = defaultColor;
+            Console.CursorVisible = true;
+        }
+
         public static string SelectKey(int left = 0, int top = 0)
         {
             string resultKeys = string.Empty;

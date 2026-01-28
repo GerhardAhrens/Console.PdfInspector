@@ -14,24 +14,43 @@ Je nachdem wie das PDF erzeug wurde, können mehr oder weniger Meta-Informationen
 PdfInfo info = PdfInspector.Analyze(@"C:\_Downloads\example_065_PDF-A.pdf");
 ```
 
-Kernstrück ist die Methode `ReadXmpValue`, die sowohl XML-Elemente als auch Attribute aus dem XMP-Metadatenblock eines PDF-Dokuments ausliest:
+PDF-Dokumente können verschiedene Metadaten enthalten, wie z.B. Titel, Autor, Erstellungsdatum, PDF-Version und ob es sich um ein PDF/A-Dokument handelt. Diese sind in verschiedene Tags hinterlegt.
+- pdfaid:
+- xmp:
+- pdf:
+
+zudem können auch Informationen in Attributen hinterlegt sein. Verschlüsslte PDF-Dokumente erschweren die Analyse, da die Metadaten nicht im Klartext vorliegen.
+
+Kernstück ist die Methode `ReadXmpValue`, die sowohl XML-Elemente als auch Attribute aus dem XMP-Metadatenblock eines PDF-Dokuments ausliest:
 ```csharp
 private static string ReadXmpValue(string text, string tagName)
 {
     /* XML-Element: <pdfaid:part>3</pdfaid:part> */
-    var elementMatch = Regex.Match(
-        text,
-        $@"<pdfaid:{tagName}>\s*(.*?)\s*</pdfaid:{tagName}>",
-        RegexOptions.IgnoreCase);
+    var elementMatch = Regex.Match(text, $@"<pdfaid:{tagName}>\s*(.*?)\s*</pdfaid:{tagName}>", RegexOptions.IgnoreCase);
 
-    if (elementMatch.Success)
+    if (elementMatch.Success == true)
+    {
         return elementMatch.Groups[1].Value;
+    }
+    else
+    {
+        var elementXmpMatch = Regex.Match(text, $@"<xmp:{tagName}>\s*(.*?)\s*</xmp:{tagName}>", RegexOptions.IgnoreCase);
+        if (elementXmpMatch.Success == true)
+        {
+            return elementXmpMatch.Groups[1].Value;
+        }
+        else
+        {
+            var elementPdfMatch = Regex.Match(text, $@"<pdf:{tagName}>\s*(.*?)\s*</pdf:{tagName}>", RegexOptions.IgnoreCase);
+            if (elementPdfMatch.Success == true)
+            {
+                return elementPdfMatch.Groups[1].Value;
+            }
+        }
+    }
 
     /* Attribut: pdfaid:part="3" */
-    var attributeMatch = Regex.Match(
-        text,
-        $@"pdfaid:{tagName}\s*=\s*[""'](.*?)[""']",
-        RegexOptions.IgnoreCase);
+    var attributeMatch = Regex.Match(text, $@"pdfaid:{tagName}\s*=\s*[""'](.*?)[""']", RegexOptions.IgnoreCase);
 
     return attributeMatch.Success ? attributeMatch.Groups[1].Value : null;
 }
@@ -44,3 +63,6 @@ string xmp = PdfInspector.ExtractXmp(@"C:\_Downloads\example_065_PDF-A.pdf");
 ```
 
 PDF haben mittlerweile auch ein gewisses Risiko, da diese auch ausführbaren Code oder auch Attachments enthalten können. Daher ist es wichtig, PDF-Dokumente sorgfältig zu analysieren, bevor damit weiter gearbeitet wird.
+
+Ergbnis der Analyse von den Beispiel PDFs
+<img src="PdfInspector.png" style="width:650px;"/>

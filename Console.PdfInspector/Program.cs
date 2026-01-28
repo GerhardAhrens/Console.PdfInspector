@@ -29,6 +29,13 @@ namespace Console.PdfInspector
     {
         private static void Main(string[] args)
         {
+            string currentDirectory = AppDomain.CurrentDomain.BaseDirectory;
+            DemoDataPath = Path.Combine(new DirectoryInfo(currentDirectory).Parent.Parent.Parent.FullName, "DemoDatei");
+            if (Directory.Exists(DemoDataPath) == false)
+            {
+                Directory.CreateDirectory(DemoDataPath);
+            }
+
             ConsoleMenu.Add("1", "PdfInspector Test", () => MenuPoint1());
             ConsoleMenu.Add("X", "Beenden", () => ApplicationExit());
 
@@ -39,6 +46,9 @@ namespace Console.PdfInspector
             while (true);
         }
 
+        internal static string DemoDataPath { get; private set; }
+
+
         private static void ApplicationExit()
         {
             Environment.Exit(0);
@@ -48,14 +58,45 @@ namespace Console.PdfInspector
         {
             System.Console.Clear();
 
-            PdfInfo info = PdfInspector.Analyze(@"C:\_Downloads\example_065_PDF-A.pdf");
-            string xmp = PdfInspector.ExtractXmp(@"C:\_Downloads\example_065_PDF-A.pdf");
-            string pdfTyp = PdfInspector.ReadPdfXMP(xmp);
+            string[] pdfFiles = Directory.GetFiles(DemoDataPath, "*.pdf");
 
-            ConsoleMenu.Print($"{info}");
-            ConsoleMenu.Print($"XMP: {pdfTyp}");
+            foreach (string pdfFile in pdfFiles)
+            {
+                ConsoleMenu.Print($"Prüfe PDF: {ShortenPath(pdfFile)}");
+                PdfInfo info = PdfInspector.Analyze(pdfFile);
+                string xmp = PdfInspector.ExtractXmp(pdfFile);
+                string pdfTyp = PdfInspector.ReadPdfXMP(xmp);
+
+                ConsoleMenu.Print($"{info}");
+                ConsoleMenu.Print($"XMP: {pdfTyp}");
+                ConsoleMenu.PrintLine();
+            }
 
             ConsoleMenu.Wait();
+        }
+
+        internal static string ShortenPath(string fullPath, int maxLength = 50)
+        {
+            if (string.IsNullOrEmpty(fullPath) || fullPath.Length <= maxLength)
+            {
+                return fullPath;
+            }
+
+            string fileName = Path.GetFileName(fullPath);
+            string directory = Path.GetDirectoryName(fullPath) ?? string.Empty;
+
+            // Wenn allein der Dateiname schon zu lang ist → Dateiname kürzen
+            if (fileName.Length + 3 >= maxLength)
+            {
+                return "..." + fileName[^Math.Min(fileName.Length, maxLength - 3)..];
+            }
+
+            int remainingLength = maxLength - fileName.Length - 3;
+            string shortenedDir = directory.Length > remainingLength
+                ? directory[..remainingLength]
+                : directory;
+
+            return $"{shortenedDir}...{fileName}";
         }
     }
 
@@ -64,10 +105,14 @@ namespace Console.PdfInspector
         public string PdfVersion { get; init; }
         public string PdfAType { get; init; }
         public bool IsPdfA => PdfAType != null;
+        public string CreatorTool { get; init; }
+        public string CreateDate { get; init; }
+        public string Producer { get; init; }
+        public string Keywords { get; init; }
 
         public override string ToString()
         {
-            return $"PDF Version: {PdfVersion}, PDF/A Type: {PdfAType ?? "n/a"}";
+            return $"PDF Version: {PdfVersion}, PDF Type: {PdfAType ?? "n/a"}\nCreatorTool: {this.CreatorTool}\nCreateDate: {this.CreateDate}\nProducer: {this.Producer}\nKeywords: {this.Keywords}";
         }
     }
 
@@ -93,12 +138,16 @@ namespace Console.PdfInspector
             string text = Encoding.Latin1.GetString(bytes);
 
             string pdfVersion = ReadPdfVersion(text);
-            string pdfAType = ReadPdfAType(text);
+            (string,string,string,string,string) pdfAType = ReadPdfAType(text);
 
             return new PdfInfo
             {
                 PdfVersion = pdfVersion,
-                PdfAType = pdfAType
+                PdfAType = pdfAType.Item1,
+                CreatorTool = pdfAType.Item2,
+                CreateDate = pdfAType.Item3,
+                Producer = pdfAType.Item4,
+                Keywords = pdfAType.Item5
             };
         }
 
@@ -197,8 +246,10 @@ namespace Console.PdfInspector
             {
                 return null;
             }
-
-            return $"PDF/A-{part}{conf.ToLower()}";
+            else
+            {
+                return $"{part}{conf.ToLower()}";
+            }
         }
 
         public static PdfAttachmentInfo DetectAttachment(string pdfPath)
@@ -296,37 +347,51 @@ namespace Console.PdfInspector
             return match.Success ? match.Groups[1].Value : null;
         }
 
-        private static string ReadPdfAType(string text)
+        private static (string,string,string,string,string) ReadPdfAType(string text)
         {
             string part = ReadXmpValue(text, "part");
             string conf = ReadXmpValue(text, "conformance");
+            string creatorTool = ReadXmpValue(text, "CreatorTool");
+            string createDate = ReadXmpValue(text, "CreateDate");
+            string producer = ReadXmpValue(text, "Producer");
+            string keywords = ReadXmpValue(text, "Keywords");
 
             if (string.IsNullOrWhiteSpace(part) || string.IsNullOrWhiteSpace(conf))
             {
-                return null;
+                return (string.Empty,string.Empty,string.Empty,string.Empty,string.Empty);
             }
 
-            return $"PDF/A-{part}{conf.ToLower(CultureInfo.CurrentCulture)}";
+            return ($"PDF/A-{part}{conf.ToLower(CultureInfo.CurrentCulture)}", creatorTool, createDate, producer, keywords);
         }
 
         private static string ReadXmpValue(string text, string tagName)
         {
             /* XML-Element: <pdfaid:part>3</pdfaid:part> */
-            var elementMatch = Regex.Match(
-                text,
-                $@"<pdfaid:{tagName}>\s*(.*?)\s*</pdfaid:{tagName}>",
-                RegexOptions.IgnoreCase);
+            var elementMatch = Regex.Match(text, $@"<pdfaid:{tagName}>\s*(.*?)\s*</pdfaid:{tagName}>", RegexOptions.IgnoreCase);
 
             if (elementMatch.Success == true)
             {
                 return elementMatch.Groups[1].Value;
             }
+            else
+            {
+                var elementXmpMatch = Regex.Match(text, $@"<xmp:{tagName}>\s*(.*?)\s*</xmp:{tagName}>", RegexOptions.IgnoreCase);
+                if (elementXmpMatch.Success == true)
+                {
+                    return elementXmpMatch.Groups[1].Value;
+                }
+                else
+                {
+                    var elementPdfMatch = Regex.Match(text, $@"<pdf:{tagName}>\s*(.*?)\s*</pdf:{tagName}>", RegexOptions.IgnoreCase);
+                    if (elementPdfMatch.Success == true)
+                    {
+                        return elementPdfMatch.Groups[1].Value;
+                    }
+                }
+            }
 
             /* Attribut: pdfaid:part="3" */
-            var attributeMatch = Regex.Match(
-                text,
-                $@"pdfaid:{tagName}\s*=\s*[""'](.*?)[""']",
-                RegexOptions.IgnoreCase);
+            var attributeMatch = Regex.Match(text, $@"pdfaid:{tagName}\s*=\s*[""'](.*?)[""']", RegexOptions.IgnoreCase);
 
             return attributeMatch.Success ? attributeMatch.Groups[1].Value : null;
         }

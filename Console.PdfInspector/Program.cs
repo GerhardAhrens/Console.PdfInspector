@@ -21,6 +21,7 @@ namespace Console.PdfInspector
     /* Imports from NET Framework */
     using System;
     using System.Globalization;
+    using System.IO.Enumeration;
     using System.Text;
     using System.Text.RegularExpressions;
     using System.Xml;
@@ -58,13 +59,46 @@ namespace Console.PdfInspector
         {
             System.Console.Clear();
 
-            string[] pdfFiles = Directory.GetFiles(DemoDataPath, "*.pdf");
+            var extensions = new List<string> { ".pdf" };
+            EnumerationOptions eo = new EnumerationOptions();
+            eo.RecurseSubdirectories = true;
+            eo.IgnoreInaccessible = true;
 
-            foreach (string pdfFile in pdfFiles)
+            var pdfFiles = new FileSystemEnumerable<(long, string)>(DemoDataPath,
+                (ref FileSystemEntry entry) => (entry.Length, entry.ToSpecifiedFullPath()), eo)
             {
-                ConsoleMenu.Print($"Prüfe PDF: {ShortenPath(pdfFile)}");
-                PdfInfo info = PdfInspector.Analyze(pdfFile);
-                string xmp = PdfInspector.ExtractXmp(pdfFile);
+                ShouldIncludePredicate = (ref FileSystemEntry entry) =>
+                {
+                    // Skip directories.
+                    if (entry.IsDirectory == true)
+                    {
+                        return false;
+                    }
+
+                    foreach (string extension in extensions)
+                    {
+                        var fileExtension = Path.GetExtension(entry.FileName);
+                        if (fileExtension.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
+                        {
+                            // Include the file if it matches one of our extensions.
+                            return true;
+                        }
+                    }
+
+                    // Doesn't match, so exclude it.
+                    return false;
+                }
+            };
+
+            /*
+            string[] pdfFiles = Directory.GetFiles(DemoDataPath, "*.pdf", eo);
+            */
+
+            foreach (var pdfFile in pdfFiles)
+            {
+                ConsoleMenu.Print($"Prüfe PDF: {ShortenPath(pdfFile.Item2)}");
+                PdfInfo info = PdfInspector.Analyze(pdfFile.Item2);
+                string xmp = PdfInspector.ExtractXmp(pdfFile.Item2);
                 string pdfTyp = PdfInspector.ReadPdfXMP(xmp);
 
                 ConsoleMenu.Print($"{info}");

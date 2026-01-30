@@ -37,7 +37,11 @@ namespace Console.PdfInspector
                 Directory.CreateDirectory(DemoDataPath);
             }
 
-            ConsoleMenu.Add("1", "PdfInspector Test", () => MenuPoint1());
+            ConsoleMenu.Add("1", "PdfInspector (einfaches sequenzielles lesen)", () => MenuPoint1());
+            ConsoleMenu.Add("2", "PdfInspector (erweitertes sequenzielles lesen)", () => MenuPoint2());
+            ConsoleMenu.Add("3", "PdfInspector (schnelles sequenzielles lesen)", () => MenuPoint3());
+            ConsoleMenu.Add("4", "PdfInspector (schnelles paralleles lesen)", () => MenuPoint4());
+            ConsoleMenu.Add("5", "PdfInspector (schnelles optimiertes paralleles lesen)", () => MenuPoint5());
             ConsoleMenu.Add("X", "Beenden", () => ApplicationExit());
 
             do
@@ -59,10 +63,36 @@ namespace Console.PdfInspector
         {
             System.Console.Clear();
 
-            var extensions = new List<string> { ".pdf" };
             EnumerationOptions eo = new EnumerationOptions();
             eo.RecurseSubdirectories = true;
             eo.IgnoreInaccessible = true;
+
+            string[] pdfFiles = Directory.GetFiles(DemoDataPath, "*.pdf", eo);
+
+            foreach (var pdfFile in pdfFiles)
+            {
+                ConsoleMenu.Print($"Prüfe PDF: {ShortenPath(pdfFile)}");
+                PdfInfo info = PdfInspector.Analyze(pdfFile);
+                string xmp = PdfInspector.ExtractXmp(pdfFile);
+                string pdfTyp = PdfInspector.ReadPdfXMP(xmp);
+
+                ConsoleMenu.Print($"{info}");
+                ConsoleMenu.Print($"XMP: {pdfTyp}");
+                ConsoleMenu.PrintLine();
+            }
+
+            ConsoleMenu.Wait();
+        }
+
+        private static void MenuPoint2()
+        {
+            System.Console.Clear();
+
+            var extensions = new List<string> { ".pdf" };
+            EnumerationOptions eo = new EnumerationOptions();
+            eo.RecurseSubdirectories = true;
+            eo.IgnoreInaccessible = true; eo.RecurseSubdirectories = true; /*wichtige Option, wenn die dateien auf einem Netzwerkpfad liegen */
+            eo.ReturnSpecialDirectories = false;
 
             var pdfFiles = new FileSystemEnumerable<(long, string)>(DemoDataPath,
                 (ref FileSystemEntry entry) => (entry.Length, entry.ToSpecifiedFullPath()), eo)
@@ -90,10 +120,6 @@ namespace Console.PdfInspector
                 }
             };
 
-            /*
-            string[] pdfFiles = Directory.GetFiles(DemoDataPath, "*.pdf", eo);
-            */
-
             foreach (var pdfFile in pdfFiles)
             {
                 ConsoleMenu.Print($"Prüfe PDF: {ShortenPath(pdfFile.Item2)}");
@@ -107,6 +133,119 @@ namespace Console.PdfInspector
             }
 
             ConsoleMenu.Wait();
+        }
+
+        private static void MenuPoint3()
+        {
+            System.Console.Clear();
+
+            EnumerationOptions eo = new EnumerationOptions();
+            eo.RecurseSubdirectories = true; /*wichtige Option, wenn die dateien auf einem Netzwerkpfad liegen */
+            eo.IgnoreInaccessible = true;
+            eo.ReturnSpecialDirectories = false;
+
+            foreach (var pdfFile in Directory.EnumerateFiles(DemoDataPath, "*.pdf",eo))
+            {
+                try
+                {
+                    ConsoleMenu.Print($"Prüfe PDF: {ShortenPath(pdfFile)}");
+                    PdfInfo info = PdfInspector.Analyze(pdfFile);
+                    string xmp = PdfInspector.ExtractXmp(pdfFile);
+                    string pdfTyp = PdfInspector.ReadPdfXMP(xmp);
+
+                    ConsoleMenu.Print($"{info}");
+                    ConsoleMenu.Print($"XMP: {pdfTyp}");
+                    ConsoleMenu.PrintLine();
+                }
+                catch (Exception ex)
+                {
+                    string errorText = ex.Message;
+                }
+            }
+
+            ConsoleMenu.Wait();
+        }
+
+        private static void MenuPoint4()
+        {
+            System.Console.Clear();
+
+            EnumerationOptions eo = new EnumerationOptions();
+            eo.RecurseSubdirectories = true; /*wichtige Option, wenn die dateien auf einem Netzwerkpfad liegen */
+            eo.IgnoreInaccessible = true;
+            eo.ReturnSpecialDirectories = false;
+
+            Parallel.ForEach(Directory.EnumerateFiles(DemoDataPath, "*.pdf", eo),
+                new ParallelOptions
+                {
+                    MaxDegreeOfParallelism = Environment.ProcessorCount / 2
+                },
+                pdfFile =>
+                {
+                    try
+                    {
+                        ConsoleMenu.Print($"Prüfe PDF: {ShortenPath(pdfFile)}");
+                        PdfInfo info = PdfInspector.Analyze(pdfFile);
+                        string xmp = PdfInspector.ExtractXmp(pdfFile);
+                        string pdfTyp = PdfInspector.ReadPdfXMP(xmp);
+
+                        ConsoleMenu.Print($"{info}");
+                        ConsoleMenu.Print($"XMP: {pdfTyp}");
+                        ConsoleMenu.PrintLine();
+                    }
+                    catch (Exception ex)
+                    {
+                        string errorText = ex.Message;
+                    }
+                });
+
+            ConsoleMenu.Wait();
+        }
+
+        private static void MenuPoint5()
+        {
+            System.Console.Clear();
+
+            EnumerationOptions eo = new EnumerationOptions();
+            eo.RecurseSubdirectories = true; /*wichtige Option, wenn die dateien auf einem Netzwerkpfad liegen */
+            eo.IgnoreInaccessible = true;
+            eo.ReturnSpecialDirectories = false;
+
+            var extensions = new[] { ".pdf" };
+
+            Parallel.ForEach(EnumerateFilesByExtensions(DemoDataPath, extensions, eo),
+                new ParallelOptions
+                {
+                    MaxDegreeOfParallelism = Math.Max(2, Environment.ProcessorCount / 2)
+                },
+                    pdfFile =>
+                    {
+                        try
+                        {
+                            ConsoleMenu.Print($"Prüfe PDF: {ShortenPath(pdfFile)}");
+                            PdfInfo info = PdfInspector.Analyze(pdfFile);
+                            string xmp = PdfInspector.ExtractXmp(pdfFile);
+                            string pdfTyp = PdfInspector.ReadPdfXMP(xmp);
+
+                            ConsoleMenu.Print($"{info}");
+                            ConsoleMenu.Print($"XMP: {pdfTyp}");
+                            ConsoleMenu.PrintLine();
+                        }
+                        catch (Exception ex)
+                        {
+                            string errorText = ex.Message;
+                        }
+                     }
+            );
+
+            ConsoleMenu.Wait();
+        }
+
+        public static IEnumerable<string> EnumerateFilesByExtensions(string rootPath, IEnumerable<string> extensions, EnumerationOptions options)
+        {
+            HashSet<string> extSet = new HashSet<string>(extensions.Select(e => e.StartsWith(".") ? e : "." + e), StringComparer.OrdinalIgnoreCase);
+
+            return Directory.EnumerateFiles(rootPath, "*.*", options).Where(file => extSet.Contains(Path.GetExtension(file)));
         }
 
         internal static string ShortenPath(string fullPath, int maxLength = 50)

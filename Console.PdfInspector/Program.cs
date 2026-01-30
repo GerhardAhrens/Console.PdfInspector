@@ -211,7 +211,7 @@ namespace Console.PdfInspector
             eo.IgnoreInaccessible = true;
             eo.ReturnSpecialDirectories = false;
 
-            var extensions = new[] { ".pdf" };
+            var extensions = new[] { ".pdf", ".docx" };
 
             Parallel.ForEach(EnumerateFilesByExtensions(DemoDataPath, extensions, eo),
                 new ParallelOptions
